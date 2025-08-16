@@ -5,16 +5,58 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ArrowLeft, ArrowUpRight, User, DollarSign } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 const SendMoney = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [amount, setAmount] = useState('');
   const [recipient, setRecipient] = useState('');
   const [note, setNote] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleSend = () => {
-    // Handle send money logic here
-    console.log('Sending money:', { amount, recipient, note });
+  const handleSend = async () => {
+    if (!amount || !recipient) return;
+
+    setLoading(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('send-money', {
+        body: {
+          recipientEmail: recipient,
+          amount: parseFloat(amount),
+          note: note
+        }
+      });
+
+      if (error) throw error;
+
+      if (data.success) {
+        toast({
+          title: "Money Sent Successfully!",
+          description: `$${amount} sent to ${recipient}`,
+        });
+        
+        // Reset form
+        setAmount('');
+        setRecipient('');
+        setNote('');
+        
+        // Navigate back to dashboard
+        navigate('/');
+      } else {
+        throw new Error(data.error || 'Transaction failed');
+      }
+    } catch (error: any) {
+      toast({
+        title: "Transaction Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -87,9 +129,9 @@ const SendMoney = () => {
           <Button 
             className="w-full bg-gradient-primary hover:opacity-90"
             onClick={handleSend}
-            disabled={!amount || !recipient}
+            disabled={!amount || !recipient || loading}
           >
-            Send ${amount || '0.00'}
+            {loading ? 'Processing...' : `Send $${amount || '0.00'}`}
           </Button>
         </CardContent>
       </Card>
